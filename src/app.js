@@ -1,56 +1,135 @@
 import express from "express";
 import path from "path";
 import bodyParser from "body-parser";
-import { getList, addUser,deleteList } from "./model/query.js";
 import md5 from "md5";
+
+import {createResponse} from './utils/reponseUtil.js'
+import {logTime} from './middleware/timelog.js'
+import { getList, addUser,deleteList,getServer } from "./model/query.js";
+import {Connect,flushAll} from "./redis/monitor.js"
+import {cacheMiddleware} from './middleware/cache.js'
+
 const app = express();
-const PORT = 3000;
+const PORT = 3002;
 const __dirname = path.resolve();
+
+app.use(logTime)
 app.use("/static", express.static("static"));
 app.use(
     bodyParser.urlencoded({
         extended: true,
     })
 );
+
+var connection ;
+
+//@ type  GET
+//@ route /
+//@ desc  Send the frontend 
 app.get("/", (req, res) => {
     res.sendFile(path.join(__dirname + "/templates/index_page.html"));
 });
 
-//@Fetch data from SQLLite DataBase
+//@ type  GET
+//@ route /api/redis_list
+//@ desc  Fetch list of server from SQLLite DataBase
 app.get("/api/redis_list", async (req, res) => {
     var a = getList();
-    a.then((d) => {
-        res.json({ success: 1, data: d });
+    a.then((d) => { 
+        res.json(createResponse(1,d,req.originalUrl|| req.url));
     });
 });
 
-app.post("/api/add", (req, res) => {
-    try {
-        var a = addUser({
+//@ type  GET
+//@ route /api/add
+//@ desc  Add server to monitor 
+app.post("/api/add", async (req, res) => {
+    connection = await Connect(req.body.host, parseInt(req.body.port))
+    connection.on("error", function (error) {
+        connection.end(true);
+        res.json(createResponse(0,"Ping error!",req.originalUrl|| req.url));
+    });
+    connection.on("ready", async function (error) {
+        var a = await addUser({
             md5: md5(req.body.host + req.body.port.toString()),
             host: req.body.host,
             port: req.body.port,
             password: req.body.password,
-        });
+        }).then(data => {
+            connection.end(true);
+            res.json(createResponse(1,data,req.originalUrl|| req.url));
+        }).catch(err => {
+            connection.end(true);
+            res.json(createResponse(0,"Ping error!",req.originalUrl|| req.url));
+        })
 
-        a.then((d) => {
-            res.json({ success: 1, data: d });
-        });
-    } catch {
-        res.json({ success: 0, data: "Ping error!" });
-    }
+    });
 });
 
+//@ type  GET
+//@ route /api/redis_list
+//@ desc  Fetch list of server from SQLLite DataBase
 app.post('/api/del',(req,res)=>{
     try {
         deleteList(req.body.md5)
 
-            res.json({ success: 1, data: 'Success!'});
+            res.json(createResponse(1,"Success!",req.originalUrl|| req.url));
        
     } catch {
-        res.json({ success: 0, data: "Not Found!" });
+        res.json(createResponse(0,"Not Found!",req.originalUrl|| req.url));
     }
 })
+
+app.get('/api/redis_info',(req,res)=>{
+    var a = getServer('cd941abe59d892375ad5f10842db19f5');
+    a.then(data => {
+
+        res.json(createResponse(1,data[0]['dataValues'],req.originalUrl|| req.url));
+    })
+})
+
+app.get('/api/redis_monitor',cacheMiddleware(10) ,(req, res) => {
+    
+    var client = getServer(req.query.md5)
+    client.then(data => {
+        var start=Date.now();
+        connection = Connect(data[0]['dataValues']['host'], parseInt(data[0]['dataValues']['port']));
+        connection.then(connect => {
+            connect.on("ready", async function (error) {
+                connect.end(true);
+                connect['server_info']["get_time"]= (Date.now() - start ); 
+                res.json(createResponse(1,connect['server_info'],req.originalUrl|| req.url));
+            });
+            connect.on("error", function (error) {
+                connect.end(true);
+                res.json(createResponse(0,"Ping error!",req.originalUrl|| req.url));
+            });
+        })
+
+    })
+})
+
+app.get('/api/ping',async (req, res) => {
+    connection = await Connect(req.body.host, parseInt(req.body.port))
+    connection.on("error", function (error) {
+        connection.end(true);
+        res.json(createResponse(0,"Ping error!",req.originalUrl|| req.url));
+    });
+    connection.on("ready", async function (error) {
+        res.json(createResponse(1,"Ping success!",req.originalUrl|| req.url));
+    });
+    let key = '__express__' + req.originalUrl || req.url;
+    console.timeEnd(key);
+})
+app.get('/api/redis/flushall',(req, res) => {
+    var a = getServer(req.query.md5)
+    a.then(data=>{
+        flushAll(data[0]['dataValues']['host'],data[0]['dataValues']['port'],data[0]['dataValues']['password'],req.query.db).then(blob=>{
+            res.json(createResponse(1,"Success!",req.originalUrl|| req.url));
+        })
+    })
+})
+
 app.listen(PORT, () => {
     console.log("Server Listening 127.0.0.1:" + PORT);
 });

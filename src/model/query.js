@@ -26,8 +26,19 @@ async function deleteList(md5){
       });
 }
 
+async function getServer(md5){
+  await User.sync();
+  var data = await User.findAll({
+    where:{
+      md5:md5.toString(),
+    }
+  })
+  return data;
+}
+
 export {
   addUser,
   getList,
-  deleteList
+  deleteList,
+  getServer
 }
