@@ -14,9 +14,6 @@ Nodejs implementation of https://github.com/NetEaseGame/redis-monitor
 	
 	> **npm start**
 
-3. start webserver
-
-	> **redis-monitor start**
 
 Then visit [127.0.0.1:3002](http://127.0.0.1:9527/) 
 
