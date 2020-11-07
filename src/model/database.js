@@ -1,7 +1,12 @@
 import pkg from 'sequelize';
+import path from 'path'
 const { Sequelize, DataTypes, Model } = pkg;
-const sequelize = new Sequelize('sqlite::memory:');
-
+//const sequelize = new Sequelize('sqlite::memory:');
+const sequelize = new Sequelize({
+  dialect: 'sqlite',
+  storage: 'F:\\Projects\\Kritikal\\Monitor\\src\\model\\store\\database.sqlite',
+  logging: false
+});
 const User = sequelize.define(
   "Redis",
   {
