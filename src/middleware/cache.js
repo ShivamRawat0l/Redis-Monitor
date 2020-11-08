@@ -2,6 +2,7 @@ import cache from 'memory-cache';
 import { printTime } from './timelog.js';
 
 let memCache = new cache.Cache();
+
 let cacheMiddleware = (duration) => {
     return (req, res, next) => {
         let key = '__express__' + req.originalUrl || req.url
@@ -20,6 +21,7 @@ let cacheMiddleware = (duration) => {
         }
     }
 }
+
 export {
     cacheMiddleware
 }

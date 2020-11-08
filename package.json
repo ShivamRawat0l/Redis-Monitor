@@ -4,7 +4,7 @@
   "description": "Nodejs implementation of https://github.com/NetEaseGame/redis-monitor",
   "main": "index.js",
   "scripts": {
-    "start": "webpack",
+    "start": "nodemon ./src/app.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {

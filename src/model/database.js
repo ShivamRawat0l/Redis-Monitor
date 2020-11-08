@@ -2,9 +2,10 @@ import pkg from 'sequelize';
 import path from 'path'
 const { Sequelize, DataTypes, Model } = pkg;
 //const sequelize = new Sequelize('sqlite::memory:');
+const __dirname = path.resolve();
 const sequelize = new Sequelize({
   dialect: 'sqlite',
-  storage: 'F:\\Projects\\Kritikal\\Monitor\\src\\model\\store\\database.sqlite',
+  storage: path.join(__dirname, '/src/model/store/database.sqlite'),
   logging: false
 });
 const User = sequelize.define(
@@ -26,11 +27,11 @@ const User = sequelize.define(
     password: {
       type: DataTypes.STRING,
     },
-    add_time: { 
-      type: DataTypes.DATE 
+    add_time: {
+      type: DataTypes.DATE
     },
-    cdd_time: { 
-      type: DataTypes.DATE 
+    cdd_time: {
+      type: DataTypes.DATE
     }
   },
   {

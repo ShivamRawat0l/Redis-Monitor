@@ -3,31 +3,31 @@ import path from "path";
 import bodyParser from "body-parser";
 import md5 from "md5";
 
-import {createResponse} from './utils/reponseUtil.js'
-import {logTime} from './middleware/timelog.js'
-import { getList, addUser,deleteList,getServer } from "./model/query.js";
-import {Connect,flushAll} from "./redis/monitor.js"
-import {cacheMiddleware} from './middleware/cache.js'
+import { createResponse } from './utils/reponseUtil.js'
+import { logTime } from './middleware/timelog.js'
+import { getList, addUser, deleteList, getServer } from "./model/query.js";
+import { Connect, flushAll } from "./redis/monitor.js"
+import { cacheMiddleware } from './middleware/cache.js'
 
 const app = express();
 const PORT = 3002;
 const __dirname = path.resolve();
 
 app.use(logTime)
-app.use("/static", express.static("static"));
+app.use("/static", express.static("src/static"));
 app.use(
     bodyParser.urlencoded({
         extended: true,
     })
 );
 
-var connection ;
+var connection;
 
 //@ type  GET
 //@ route /
 //@ desc  Send the frontend 
 app.get("/", (req, res) => {
-    res.sendFile(path.join(__dirname + "/templates/index_page.html"));
+    res.sendFile(path.join(__dirname + "/src/templates/index_page.html"));
 });
 
 //@ type  GET
@@ -35,8 +35,8 @@ app.get("/", (req, res) => {
 //@ desc  Fetch list of server from SQLLite DataBase
 app.get("/api/redis_list", async (req, res) => {
     var a = getList();
-    a.then((d) => { 
-        res.json(createResponse(1,d,req.originalUrl|| req.url));
+    a.then((d) => {
+        res.json(createResponse(1, d, req.originalUrl || req.url));
     });
 });
 
@@ -44,10 +44,10 @@ app.get("/api/redis_list", async (req, res) => {
 //@ route /api/add
 //@ desc  Add server to monitor 
 app.post("/api/add", async (req, res) => {
-    connection = await Connect(req.body.host, parseInt(req.body.port))
+    connection = await Connect(req.body.host, parseInt(req.body.port),req.body.password)
     connection.on("error", function (error) {
         connection.end(true);
-        res.json(createResponse(0,"Ping error!",req.originalUrl|| req.url));
+        res.json(createResponse(0, "Ping error!", req.originalUrl || req.url));
     });
     connection.on("ready", async function (error) {
         var a = await addUser({
@@ -57,75 +57,90 @@ app.post("/api/add", async (req, res) => {
             password: req.body.password,
         }).then(data => {
             connection.end(true);
-            res.json(createResponse(1,data,req.originalUrl|| req.url));
+            res.json(createResponse(1, data, req.originalUrl || req.url));
         }).catch(err => {
             connection.end(true);
-            res.json(createResponse(0,"Ping error!",req.originalUrl|| req.url));
+            res.json(createResponse(0, "Ping error!", req.originalUrl || req.url));
         })
 
     });
 });
 
-//@ type  GET
-//@ route /api/redis_list
-//@ desc  Fetch list of server from SQLLite DataBase
-app.post('/api/del',(req,res)=>{
+//@ type  POST
+//@ route /api/del
+//@ desc  Delete server from the list of SQLLITE
+app.post('/api/del', (req, res) => {
     try {
         deleteList(req.body.md5)
-
-            res.json(createResponse(1,"Success!",req.originalUrl|| req.url));
-       
+        res.json(createResponse(1, "Success!", req.originalUrl || req.url));
     } catch {
-        res.json(createResponse(0,"Not Found!",req.originalUrl|| req.url));
+        res.json(createResponse(0, "Not Found!", req.originalUrl || req.url));
     }
 })
 
-app.get('/api/redis_info',(req,res)=>{
-    var a = getServer('cd941abe59d892375ad5f10842db19f5');
+//@ type  GET
+//@ route /api/redis_info
+//@ desc  Get Host Name and Password 
+app.get('/api/redis_info', (req, res) => {
+    var a = getServer(req.query.md5);
     a.then(data => {
-
-        res.json(createResponse(1,data[0]['dataValues'],req.originalUrl|| req.url));
+        if (data.length() == 0) {
+            res.json(createResponse(0, "Not Found!", req.originalUrl || req.url));
+        }
+        else {
+            res.json(createResponse(1, data[0]['dataValues'], req.originalUrl || req.url));
+        }
+    })
+    .catch(err => {
+        res.json(createResponse(0, "Not Found!", req.originalUrl || req.url));
     })
 })
 
-app.get('/api/redis_monitor',cacheMiddleware(10) ,(req, res) => {
-    
+//@ type  GET
+//@ route /api/redis_monitor
+//@ desc  Get monitor data of the redis
+app.get('/api/redis_monitor', cacheMiddleware(10), (req, res) => {
     var client = getServer(req.query.md5)
     client.then(data => {
-        var start=Date.now();
-        connection = Connect(data[0]['dataValues']['host'], parseInt(data[0]['dataValues']['port']));
+        var start = Date.now();
+        connection = Connect(data[0]['dataValues']['host'], parseInt(data[0]['dataValues']['port'],data[0]['dataValues']['password']));
         connection.then(connect => {
-            connect.on("ready", async function (error) {
+            connect.on("ready", async function () {
+                connect['server_info']["get_time"] = (Date.now() - start);
                 connect.end(true);
-                connect['server_info']["get_time"]= (Date.now() - start ); 
-                res.json(createResponse(1,connect['server_info'],req.originalUrl|| req.url));
+                res.json(createResponse(1, connect['server_info'], req.originalUrl || req.url));
             });
             connect.on("error", function (error) {
                 connect.end(true);
-                res.json(createResponse(0,"Ping error!",req.originalUrl|| req.url));
+                res.json(createResponse(0, "get redis realtime information error!", req.originalUrl || req.url));
             });
         })
 
     })
 })
 
-app.get('/api/ping',async (req, res) => {
-    connection = await Connect(req.body.host, parseInt(req.body.port))
+//@ type  GET
+//@ route /api/ping
+//@ desc  Ping the redis server
+app.get('/api/ping', async (req, res) => {
+    connection = await Connect(req.body.host, parseInt(req.body.port),req.body.password)
     connection.on("error", function (error) {
         connection.end(true);
-        res.json(createResponse(0,"Ping error!",req.originalUrl|| req.url));
+        res.json(createResponse(0, "Ping error!", req.originalUrl || req.url));
     });
     connection.on("ready", async function (error) {
-        res.json(createResponse(1,"Ping success!",req.originalUrl|| req.url));
+        res.json(createResponse(1, "Ping success!", req.originalUrl || req.url));
     });
-    let key = '__express__' + req.originalUrl || req.url;
-    console.timeEnd(key);
 })
-app.get('/api/redis/flushall',(req, res) => {
+
+//@ type  GET
+//@ route /api/redis/flushall
+//@ desc  Flush the DB
+app.get('/api/redis/flushall', (req, res) => {
     var a = getServer(req.query.md5)
-    a.then(data=>{
-        flushAll(data[0]['dataValues']['host'],data[0]['dataValues']['port'],data[0]['dataValues']['password'],req.query.db).then(blob=>{
-            res.json(createResponse(1,"Success!",req.originalUrl|| req.url));
+    a.then(data => {
+        flushAll(data[0]['dataValues']['host'], data[0]['dataValues']['port'], data[0]['dataValues']['password'], req.query.db).then(blob => {
+            res.json(createResponse(1, "Success!", req.originalUrl || req.url));
         })
     })
 })

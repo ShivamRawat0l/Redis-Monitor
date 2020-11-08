@@ -1,9 +1,9 @@
-import  {printTime}  from "../middleware/timelog.js";
+import { printTime } from "../middleware/timelog.js";
 
-function createResponse(code,data,url){
-    printTime(url); 
+function createResponse(code, data, url) {
+    printTime(url);
     return { success: code, data: data }
 }
-export { 
+export {
     createResponse
 }
