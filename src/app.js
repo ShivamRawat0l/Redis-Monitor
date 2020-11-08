@@ -84,12 +84,9 @@ app.post('/api/del', (req, res) => {
 app.get('/api/redis_info', (req, res) => {
     var a = getServer(req.query.md5);
     a.then(data => {
-        if (data.length() == 0) {
-            res.json(createResponse(0, "Not Found!", req.originalUrl || req.url));
-        }
-        else {
+        
             res.json(createResponse(1, data[0]['dataValues'], req.originalUrl || req.url));
-        }
+        
     })
     .catch(err => {
         res.json(createResponse(0, "Not Found!", req.originalUrl || req.url));
@@ -115,6 +112,9 @@ app.get('/api/redis_monitor', cacheMiddleware(10), (req, res) => {
                 res.json(createResponse(0, "get redis realtime information error!", req.originalUrl || req.url));
             });
         })
+        .catch(err=>{
+            res.json(createResponse(0, "not exist redis informations!", req.originalUrl || req.url));
+        })
 
     })
 })
@@ -129,6 +129,7 @@ app.get('/api/ping', async (req, res) => {
         res.json(createResponse(0, "Ping error!", req.originalUrl || req.url));
     });
     connection.on("ready", async function (error) {
+        connection.end(true);
         res.json(createResponse(1, "Ping success!", req.originalUrl || req.url));
     });
 })
@@ -136,12 +137,33 @@ app.get('/api/ping', async (req, res) => {
 //@ type  GET
 //@ route /api/redis/flushall
 //@ desc  Flush the DB
-app.get('/api/redis/flushall', (req, res) => {
-    var a = getServer(req.query.md5)
+app.all('/api/redis/flushall', (req, res) => {
+    if(req.method=="GET"){
+        DB_Param=req.query.db;
+        MD5_Param=req.query.md5;
+    }
+    else if(req.method=="POST"){
+        DB_Param=req.body.db;
+        MD5_Param=req.body.md5;
+    }
+    else{
+        res.json(createResponse(0, "Invalid Method!", req.originalUrl || req.url));
+    }
+    var a = getServer(MD5_Param)
     a.then(data => {
-        flushAll(data[0]['dataValues']['host'], data[0]['dataValues']['port'], data[0]['dataValues']['password'], req.query.db).then(blob => {
-            res.json(createResponse(1, "Success!", req.originalUrl || req.url));
-        })
+        if (data.length() == 0) {
+            res.json(createResponse(0, "Not Found!", req.originalUrl || req.url));
+        }
+        else {
+            flushAll(data[0]['dataValues']['host'], data[0]['dataValues']['port'], data[0]['dataValues']['password'], DB_Param).then(blob => {
+                if (blob)
+                    res.json(createResponse(1, "Success!", req.originalUrl || req.url));
+                else
+                    res.json(createResponse(0, "Flush db error!", req.originalUrl || req.url));
+            }).catch(err => {
+                res.json(createResponse(0, "Connect to redis error!", req.originalUrl || req.url));
+            })
+        }
     })
 })
 
