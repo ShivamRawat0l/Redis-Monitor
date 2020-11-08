@@ -10,7 +10,7 @@ import { Connect, flushAll } from "./redis/monitor.js"
 import { cacheMiddleware } from './middleware/cache.js'
 
 const app = express();
-const PORT = 3002;
+const PORT = process.env.PORT || 3002;
 const __dirname = path.resolve();
 
 app.use(logTime)
