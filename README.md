@@ -19,4 +19,4 @@ Then visit [127.0.0.1:3002](http://127.0.0.1:9527/)
  
 ## LICENSE
 
-MIT @hustcc
+MIT 
